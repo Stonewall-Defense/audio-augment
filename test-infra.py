@@ -1,7 +1,7 @@
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-from audiomentations import Compose
+from audiomentations import Compose, Normalize
 import click
 import torch
 import torchaudio
@@ -48,6 +48,7 @@ def cli():
 def rel(duration_secs: int, save: bool):
     augs = Compose([
         Infrasound(noise_level_type=NoiseLevelType.RELATIVE, min_snr_db=0, max_snr_db=10, p=1.0),
+        Normalize(p=1.0),
     ])
 
     wav = load_input("input/rq-voice-color.wav", target_sr=SAMPLE_RATE, duration_secs=duration_secs)
