@@ -70,7 +70,6 @@ class Infrasound(BaseWaveformTransform):
         super().randomize_parameters(samples, sample_rate)
         if self.parameters["should_apply"]:
             num_freqs = random.randint(self.min_infra_freqs, self.max_infra_freqs)
-            print(num_freqs)
             choices = random.sample(self.freq_range_hz, num_freqs)
             self.parameters["freqs"] = [self._make_freq(samples.size, F0, sample_rate) for F0 in choices]
             self.parameters["amps"] = [self._make_amp() for _ in range(len(choices))]
@@ -80,8 +79,6 @@ class Infrasound(BaseWaveformTransform):
 
         for noise, amp in zip(self.parameters["freqs"], self.parameters["amps"]):
             noise_rms = calculate_rms(noise)
-
-            print(amp)
 
             if self.noise_level_type == NoiseLevelType.RELATIVE:
                 desired_noise_rms = calculate_desired_noise_rms(clean_rms, amp)
@@ -99,10 +96,13 @@ class Infrasound(BaseWaveformTransform):
         freq = torch.full((num_samples, 1), F0)
         amp = torch.ones((num_samples, 1))
 
-        print(F0)
+        # Phase shift to avoid artifacts at start and end of range
+        waveform = oscillator_bank(freq, amp, sample_rate=sr).numpy()
+        shift_amount = random.uniform(0, 1)
+        num_places_to_shift = int(round(shift_amount * num_samples))
+        shifted_wave = np.roll(waveform, num_places_to_shift, axis=-1)
 
-        waveform = oscillator_bank(freq, amp, sample_rate=sr)
-        return waveform.numpy()
+        return shifted_wave
 
     def _make_amp(self):
         if self.noise_level_type == NoiseLevelType.ABSOLUTE:
