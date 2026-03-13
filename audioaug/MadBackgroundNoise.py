@@ -37,10 +37,7 @@ def _make_mad_bg_common(mad_files: list[str],
     random.shuffle(mad_files)
     mad_files = mad_files[:max_samples]
 
-    lru_cache_size = max(max_samples, 1_000)
-
-    return AddBackgroundNoise(
-        mad_files, min_snr_db=min_snr_db, max_snr_db=max_snr_db, p=p, lru_cache_size=lru_cache_size)
+    return AddBackgroundNoise(mad_files, min_snr_db=min_snr_db, max_snr_db=max_snr_db, p=p)
 
 
 ###############################################################################

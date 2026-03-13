@@ -64,4 +64,4 @@ def create_esc_augment(path_to_esc50: str,
     random.shuffle(audio_files)
     audio_files = audio_files[:max_samples]
 
-    return AddBackgroundNoise(audio_files, min_snr_db=min_snr_db, max_snr_db=max_snr_db, p=p, lru_cache_size=max_samples)
+    return AddBackgroundNoise(audio_files, min_snr_db=min_snr_db, max_snr_db=max_snr_db, p=p)
