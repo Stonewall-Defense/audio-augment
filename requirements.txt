@@ -1,10 +1,9 @@
 # 3PP Deps
-audiomentations==0.40.0
-click==8.1.8
-numpy==1.26.4
-torch==2.8.0
-torchaudio==2.8.0
+audiomentations==0.43.1
+click==8.3.1
+numpy==2.4.3
+torch==2.10.0
 
 # Certus Deps
-audiofeatures
-plot_spec
+audiofeatures==0.4.0
+plot_spec==0.3.1
