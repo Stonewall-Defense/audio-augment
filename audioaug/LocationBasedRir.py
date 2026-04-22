@@ -24,9 +24,9 @@ class RirLocation(Enum):
 ###############################################################################
 def _filter(metadata: pd.DataFrame, location: RirLocation):
     if location == RirLocation.INDOOR:
-        return [f for f in list(metadata.loc[metadata['class_name'] != RirLocation.OUTDOOR]['filename'])]
+        return [f for f in list(metadata.loc[metadata["class_name"] != RirLocation.OUTDOOR.value]["filename"])]
     else:
-        return [f for f in list(metadata.loc[metadata['class_name'] == RirLocation.OUTDOOR]['filename'])]
+        return [f for f in list(metadata.loc[metadata["class_name"] == RirLocation.OUTDOOR.value]["filename"])]
 
 
 ###############################################################################
