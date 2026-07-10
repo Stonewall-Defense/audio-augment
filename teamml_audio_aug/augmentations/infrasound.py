@@ -1,32 +1,24 @@
 ###############################################################################
 # Global Imports
 ###############################################################################
-from enum import Enum
 import random
-from typing import Optional
+from typing import Literal, Optional
 import warnings
 
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-import numpy as np
-from numpy.typing import NDArray
 import torch
 
-from audiomentations.core.transforms_interface import BaseWaveformTransform
-from audiomentations.core.utils import (
+###############################################################################
+# Local Imports
+###############################################################################
+from teamml_audio_aug.core.transforms_interface import BaseWaveformTransform
+from teamml_audio_aug.core.utils import (
     calculate_desired_noise_rms,
     calculate_rms,
     convert_decibels_to_amplitude_ratio,
 )
-
-
-###############################################################################
-# Enums
-###############################################################################
-class NoiseLevelType(Enum):
-    ABSOLUTE = "absolute"
-    RELATIVE = "relative"
 
 
 ###############################################################################
@@ -113,19 +105,20 @@ def _oscillator_bank(
 class Infrasound(BaseWaveformTransform):
     def __init__(
         self,
+        *,
+        sample_rate: Optional[int] = None,
         min_freq_hz=2,
         max_freq_hz=50,
         min_infra_freqs=2,
         max_infra_freqs=8,
-        *,
-        noise_level_type: NoiseLevelType = NoiseLevelType.RELATIVE,
+        noise_level_type: Literal["absolute", "relative"] = "relative",
         min_snr_db=3.0,
         max_snr_db=30.0,
         min_absolute_rms_db=-45.0,
         max_absolute_rms_db=-15.0,
         p=0.5,
     ):
-        super().__init__(p)
+        super().__init__(sample_rate, p=p)
 
         if min_freq_hz > max_freq_hz:
             raise ValueError("min_freq_hz must not be greater than max_freq_hz")
@@ -145,21 +138,24 @@ class Infrasound(BaseWaveformTransform):
         self.max_absolute_rms_db = max_absolute_rms_db
         self.noise_level_type = noise_level_type
 
-    def randomize_parameters(self, samples: NDArray[np.float32], sample_rate: int):
-        super().randomize_parameters(samples, sample_rate)
-        if self.parameters["should_apply"]:
+        self.freqs: list[torch.Tensor] = []
+        self.amps: list[float] = []
+
+    def randomize_parameters(self, samples: torch.Tensor):
+        super().randomize_parameters(samples)
+        if self.should_apply:
             num_freqs = random.randint(self.min_infra_freqs, self.max_infra_freqs)
             choices = random.sample(self.freq_range_hz, num_freqs)
-            self.parameters["freqs"] = [self._make_freq(samples.size, F0, sample_rate) for F0 in choices]
-            self.parameters["amps"] = [self._make_amp() for _ in range(len(choices))]
+            self.freqs = [self._make_freq(samples.shape[-1], F0, self.sample_rate) for F0 in choices]
+            self.amps = [self._make_amp() for _ in range(len(choices))]
 
-    def apply(self, samples: NDArray[np.float32], sample_rate: int) -> NDArray[np.float32]:
+    def apply(self, samples: torch.Tensor) -> torch.Tensor:
         clean_rms = calculate_rms(samples)
 
-        for noise, amp in zip(self.parameters["freqs"], self.parameters["amps"]):
+        for noise, amp in zip(self.freqs, self.amps):
             noise_rms = calculate_rms(noise)
 
-            if self.noise_level_type == NoiseLevelType.RELATIVE:
+            if self.noise_level_type == "relative":
                 desired_noise_rms = calculate_desired_noise_rms(clean_rms, amp)
                 gain = desired_noise_rms / noise_rms
             else:
@@ -171,20 +167,20 @@ class Infrasound(BaseWaveformTransform):
 
         return samples
 
-    def _make_freq(self, num_samples: int, F0: int, sr: int) -> NDArray[np.float32]:
+    def _make_freq(self, num_samples: int, F0: int, sr: int) -> torch.Tensor:
         freq = torch.full((num_samples, 1), F0)
         amp = torch.ones((num_samples, 1))
 
         # Phase shift to avoid artifacts at start and end of range
-        waveform = _oscillator_bank(freq, amp, sample_rate=sr).numpy()
+        waveform = _oscillator_bank(freq, amp, sample_rate=sr)
         shift_amount = random.uniform(0, 1)
         num_places_to_shift = int(round(shift_amount * num_samples))
-        shifted_wave = np.roll(waveform, num_places_to_shift, axis=-1)
+        shifted_wave = torch.roll(waveform, num_places_to_shift, dims=-1)
 
         return shifted_wave
 
     def _make_amp(self):
-        if self.noise_level_type == NoiseLevelType.ABSOLUTE:
+        if self.noise_level_type == "absolute":
             return random.uniform(self.min_absolute_rms_db, self.max_absolute_rms_db)
         else:
             return random.uniform(self.min_snr_db, self.max_snr_db)

@@ -1,5 +1,0 @@
-# 3PP Deps
-audiomentations==0.43.1
-numpy==2.4.3
-numpy-audio-limiter==0.2.0
-torch==2.10.0

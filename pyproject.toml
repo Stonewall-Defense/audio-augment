@@ -1,10 +1,16 @@
 [project]
-name = "audio_augment"
-version = "v0.3.0"
-
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools.packages.find]
-include = ["audioaug*"]
+name = "audio-augment"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "audiomlspectools>=0.11.1",
+    "numpy>=2.5.1",
+    "numpy-audio-limiter>=0.2.0",
+    "numpy-minmax>=0.6.0",
+    "numpy-rms>=0.7.0",
+    "scipy>=1.18.0",
+    "tinytag>=2.2.1",
+    "torch>=2.13.0",
+]
