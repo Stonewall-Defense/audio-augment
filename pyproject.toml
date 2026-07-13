@@ -1,16 +1,41 @@
 [project]
-name = "audio-augment"
+name = "teamml_audio_augment"
 version = "0.1.0"
-description = "Add your description here"
+
+description = "Audio augmentations for TEAM-ML models and data"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+license = "MIT"
+license-files = ["LICENSE*"]
+
 dependencies = [
-    "audiomlspectools>=0.11.1",
+    "audiomlspectools>=0.11.2",
     "numpy>=2.5.1",
     "numpy-audio-limiter>=0.2.0",
-    "numpy-minmax>=0.6.0",
-    "numpy-rms>=0.7.0",
     "scipy>=1.18.0",
     "tinytag>=2.2.1",
-    "torch>=2.13.0",
+    "torch>=2.10.0",
 ]
+
+[project.optional-dependencies]
+demo = [
+    "streamlit>=1.59.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/Stonewall-Defense/audio-augment"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["teamml_audio_augment*"]
