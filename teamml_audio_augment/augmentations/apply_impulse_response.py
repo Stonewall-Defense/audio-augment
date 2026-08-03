@@ -77,7 +77,8 @@ class ApplyImpulseResponse(BaseWaveformTransform):
 
     @staticmethod
     def __load_ir(file_path: Path | str, sample_rate: int):
-        return load_wav(file_path, target_sr=sample_rate)
+        ir, _ = load_wav(file_path, target_sr=sample_rate)
+        return ir
 
     def randomize_parameters(self, samples: torch.Tensor):
         super().randomize_parameters(samples)

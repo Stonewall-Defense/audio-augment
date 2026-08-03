@@ -1,6 +1,6 @@
 [project]
 name = "teamml_audio_augment"
-version = "0.1.0"
+version = "0.1.2"
 
 description = "Audio augmentations for TEAM-ML models and data"
 readme = "README.md"
@@ -17,7 +17,7 @@ license = "MIT"
 license-files = ["LICENSE*"]
 
 dependencies = [
-    "audiomlspectools>=0.11.2",
+    "audiomlspectools>=0.12",
     "numpy>=2.5.1",
     "numpy-audio-limiter>=0.2.0",
     "scipy>=1.18.0",
