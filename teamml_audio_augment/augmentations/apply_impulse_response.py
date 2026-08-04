@@ -97,10 +97,8 @@ class ApplyImpulseResponse(BaseWaveformTransform):
         signal_ir = torch.empty(output_shape, dtype=samples.dtype)
 
         # Loop over all samples channels for channelwise convolution
-        t_1 = time.time_ns()
         for i, (sample, impulse_response) in enumerate(zip(samples, itertools.cycle(ir))):
             signal_ir[i, :] = convolve(sample, impulse_response)
-        t_2 = time.time_ns()
 
         max_value = max(torch.amax(signal_ir), -torch.amin(signal_ir))
         if max_value > 0.0:
@@ -113,7 +111,4 @@ class ApplyImpulseResponse(BaseWaveformTransform):
         # reshape if mono input
         if samples_original_dim == 1:
             signal_ir = signal_ir[0]
-
-        LOGGER.debug(f"Appied IR in {(t_2 - t_1)/1_000_000:.03f} ms")
-
         return signal_ir

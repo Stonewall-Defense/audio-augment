@@ -76,6 +76,8 @@ class AddBackgroundNoise(BaseWaveformTransform):
             )
         self.time_info_arr = torch.full((len(self.sound_file_paths),), -1.0)
 
+        self.reader = WavReader(target_sr=self.sample_rate)
+
     def randomize_parameters(self, samples: torch.Tensor):
         super().randomize_parameters(samples)
 
@@ -102,7 +104,7 @@ class AddBackgroundNoise(BaseWaveformTransform):
 
     def apply(self, samples: torch.Tensor) -> torch.Tensor:
         end_sec = self.offset + self.duration
-        noise_sound = WavReader(target_sr=self.sample_rate).read(self.noise_file_path, start_sec=self.offset, end_sec=end_sec)
+        noise_sound = self.reader.read(self.noise_file_path, start_sec=self.offset, end_sec=end_sec)
 
         noise_rms = calculate_rms(noise_sound)
         if noise_rms < 1e-9:

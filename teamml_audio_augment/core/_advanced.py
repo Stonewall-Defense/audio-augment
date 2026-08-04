@@ -9,6 +9,8 @@ from typing import Optional
 from numpy_minmax import _numpy_minmax
 from numpy_rms import _numpy_rms
 
+from scipy.signal import convolve as _convolve
+
 import torch
 
 
@@ -35,23 +37,6 @@ def _rms_fallback(a: torch.Tensor, window_size: int) -> torch.Tensor:
         output_array[..., output_i] = rms
         output_i += 1
     return output_array
-
-
-def _next_fast_len(n: int) -> int:
-    """Find the next integer with only small prime factors (2, 3, 5)."""
-    best = n
-    p2 = 1
-    while p2 < n:
-        p3 = p2
-        while p3 < n:
-            p5 = p3
-            while p5 < n:
-                p5 *= 5
-            if p5 < best:
-                best = p5
-            p3 *= 3
-        p2 *= 2
-    return best
 
 
 ###############################################################################
@@ -115,8 +100,4 @@ def minmax(a: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 def convolve(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-    n = a.shape[-1] + b.shape[-1] - 1
-    fft_len = _next_fast_len(n)
-    a_f = torch.fft.rfft(a, n=fft_len)
-    b_f = torch.fft.rfft(b, n=fft_len)
-    return torch.fft.irfft(a_f * b_f, n=fft_len)[..., :n]
+    return torch.from_numpy(_convolve(a.numpy(), b.numpy()))

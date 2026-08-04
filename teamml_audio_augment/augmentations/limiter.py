@@ -142,7 +142,7 @@ class Limiter(BaseWaveformTransform):
             # Digital silence input can cause this to happen
             return samples
 
-        samples_tmp = samples.numpy()
+        samples_tmp = samples.numpy().astype(np.float32)
 
         original_ndim = samples_tmp.ndim
         if original_ndim == 1:
