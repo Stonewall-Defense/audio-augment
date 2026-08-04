@@ -1,30 +1,25 @@
 ###############################################################################
 # Global Imports
 ###############################################################################
+from copy import copy
 import functools
 import itertools
 import logging
 import random
 from pathlib import Path
-import time
 from typing import Optional
 
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-import torch
-
-###############################################################################
-# Certus Imports
-###############################################################################
-from AudioMlSpecTools import load_wav
+import numpy as np
+from scipy.signal import convolve
 
 ###############################################################################
 # Local Imports
 ###############################################################################
-from teamml_audio_augment.core._advanced import convolve
 from teamml_audio_augment.core.transforms_interface import BaseWaveformTransform
-from teamml_audio_augment.core.utils import find_audio_files_in_paths
+from teamml_audio_augment.core.utils import find_audio_files_in_paths, load_wav
 
 
 ###############################################################################
@@ -72,35 +67,43 @@ class ApplyImpulseResponse(BaseWaveformTransform):
         assert self.ir_files, "No impulse response files found at the specified path."
 
         self.lru_cache_size = lru_cache_size
-        self.__load_ir = functools.lru_cache(maxsize=self.lru_cache_size)(self.__load_ir)
+        self.load_fn = functools.lru_cache(maxsize=self.lru_cache_size)(self.__load_ir)
         self.leave_length_unchanged = leave_length_unchanged
+
+    def __getstate__(self):
+        result = copy(self.__dict__)
+        result["load_fn"] = None
+        return result
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self.load_fn = functools.lru_cache(maxsize=self.lru_cache_size)(self.__load_ir)
 
     @staticmethod
     def __load_ir(file_path: Path | str, sample_rate: int):
-        ir, _ = load_wav(file_path, target_sr=sample_rate)
-        return ir
+        return load_wav(file_path)
 
-    def randomize_parameters(self, samples: torch.Tensor):
+    def randomize_parameters(self, samples: np.ndarray):
         super().randomize_parameters(samples)
         if self.should_apply:
             self.ir_file_path = random.choice(self.ir_files)
 
-    def apply(self, samples: torch.Tensor) -> torch.Tensor:
-        ir = self.__load_ir(self.ir_file_path, self.sample_rate)
+    def apply(self, samples: np.ndarray) -> np.ndarray:
+        ir = self.load_fn(self.ir_file_path, self.sample_rate)
 
         # Expand dimensions to match
         samples_original_dim = samples.ndim
-        samples, ir = torch.atleast_2d(samples), torch.atleast_2d(ir)
+        samples, ir = np.atleast_2d(samples), np.atleast_2d(ir)
 
         # Preallocate the output array
         output_shape = (samples.shape[0], samples.shape[1] + ir.shape[1] - 1)
-        signal_ir = torch.empty(output_shape, dtype=samples.dtype)
+        signal_ir = np.empty(output_shape, dtype=samples.dtype)
 
         # Loop over all samples channels for channelwise convolution
         for i, (sample, impulse_response) in enumerate(zip(samples, itertools.cycle(ir))):
             signal_ir[i, :] = convolve(sample, impulse_response)
 
-        max_value = max(torch.amax(signal_ir), -torch.amin(signal_ir))
+        max_value = max(np.amax(signal_ir), -np.amin(signal_ir))
         if max_value > 0.0:
             scale = 0.5 / max_value
             signal_ir *= scale

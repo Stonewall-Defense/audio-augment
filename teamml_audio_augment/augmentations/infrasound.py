@@ -9,7 +9,7 @@ import warnings
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-import torch
+import numpy as np
 
 ###############################################################################
 # Local Imports
@@ -32,12 +32,12 @@ LOGGER = logging.getLogger("teamMl")
 # Helpers
 ###############################################################################
 def _oscillator_bank(
-    frequencies: torch.Tensor,
-    amplitudes: torch.Tensor,
+    frequencies: np.ndarray,
+    amplitudes: np.ndarray,
     sample_rate: float,
     reduction: str = "sum",
-    dtype: Optional[torch.dtype] = torch.float64,
-) -> torch.Tensor:
+    dtype=np.float64,
+) -> np.ndarray:
     """
         Adapted from torchaudio: https://docs.pytorch.org/audio/2.7.0/generated/torchaudio.prototype.functional.oscillator_bank.html
     """
@@ -50,22 +50,22 @@ def _oscillator_bank(
     if reduction not in reductions:
         raise ValueError(f"The value of reduction must be either {reductions}. Found: {reduction}")
 
-    invalid = torch.abs(frequencies) >= sample_rate / 2
-    if torch.any(invalid):
+    invalid = np.abs(frequencies) >= sample_rate / 2
+    if np.any(invalid):
         warnings.warn(
             "Some frequencies are above nyquist frequency. "
             "Setting the corresponding amplitude to zero. "
             "This might cause numerically unstable gradient."
         )
-        amplitudes = torch.where(invalid, 0.0, amplitudes)
+        amplitudes = np.where(invalid, 0.0, amplitudes)
 
-    pi2 = 2.0 * torch.pi
+    pi2 = 2.0 * np.pi
     freqs = frequencies * pi2 / sample_rate % pi2
-    phases = torch.cumsum(freqs, dim=-2, dtype=dtype)
+    phases = np.cumsum(freqs, axis=-2, dtype=dtype)
     if dtype is not None and freqs.dtype != dtype:
-        phases = phases.to(freqs.dtype)
+        phases = phases.astype(freqs.dtype)
 
-    waveform = amplitudes * torch.sin(phases)
+    waveform = amplitudes * np.sin(phases)
     if reduction == "sum":
         return waveform.sum(-1)
     if reduction == "mean":
@@ -112,10 +112,10 @@ class Infrasound(BaseWaveformTransform):
         self.max_absolute_rms_db = max_absolute_rms_db
         self.noise_level_type = noise_level_type
 
-        self.freqs: list[torch.Tensor] = []
+        self.freqs: list[np.ndarray] = []
         self.amps: list[float] = []
 
-    def randomize_parameters(self, samples: torch.Tensor):
+    def randomize_parameters(self, samples: np.ndarray):
         super().randomize_parameters(samples)
         if self.should_apply:
             num_freqs = random.randint(self.min_infra_freqs, self.max_infra_freqs)
@@ -123,7 +123,7 @@ class Infrasound(BaseWaveformTransform):
             self.freqs = [self._make_freq(samples.shape[-1], F0, self.sample_rate) for F0 in choices]
             self.amps = [self._make_amp() for _ in range(len(choices))]
 
-    def apply(self, samples: torch.Tensor) -> torch.Tensor:
+    def apply(self, samples: np.ndarray) -> np.ndarray:
         clean_rms = calculate_rms(samples)
 
         for noise, amp in zip(self.freqs, self.amps):
@@ -143,15 +143,15 @@ class Infrasound(BaseWaveformTransform):
 
         return samples
 
-    def _make_freq(self, num_samples: int, F0: int, sr: int) -> torch.Tensor:
-        freq = torch.full((num_samples, 1), F0)
-        amp = torch.ones((num_samples, 1))
+    def _make_freq(self, num_samples: int, F0: int, sr: int) -> np.ndarray:
+        freq = np.full((num_samples, 1), F0)
+        amp = np.ones((num_samples, 1))
 
         # Phase shift to avoid artifacts at start and end of range
         waveform = _oscillator_bank(freq, amp, sample_rate=sr)
         shift_amount = random.uniform(0, 1)
         num_places_to_shift = int(round(shift_amount * num_samples))
-        shifted_wave = torch.roll(waveform, num_places_to_shift, dims=-1)
+        shifted_wave = np.roll(waveform, num_places_to_shift, axis=-1)
 
         return shifted_wave
 

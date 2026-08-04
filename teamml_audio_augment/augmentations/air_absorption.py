@@ -8,16 +8,14 @@ from typing import Optional
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-import torch
-
-from numpy._core.multiarray import (
-    interp as compiled_interp,
-)
+import numpy as np
+import scipy.signal
 
 ###############################################################################
 # Local Imports
 ###############################################################################
 from teamml_audio_augment.core.transforms_interface import BaseWaveformTransform
+from teamml_audio_augment.core.fft import stft, istft
 
 
 ###############################################################################
@@ -49,19 +47,7 @@ def _get_temperature_humidity_key(temperature: float, humidity: float) -> str:
 
 def _fft_freq(sr: int, n_fft: int = 2048):
     # Adapted from librosa: https://librosa.org/doc/latest/generated/librosa.fft_frequencies.html
-
-    n = n_fft
-    d = 1.0 / sr
-
-    val = 1.0 / (n * d)
-    N = n // 2 + 1
-    results = torch.arange(0, N)
-    return results * val
-
-
-def interp(x, xp, fp):
-    fp = torch.tensor(fp) if not isinstance(fp, torch.Tensor) else fp
-    return compiled_interp(x, xp, fp, None, None)
+    return np.fft.rfftfreq(n=n_fft, d=1.0 / sr)
 
 
 ###############################################################################
@@ -178,7 +164,7 @@ class AirAbsorption(BaseWaveformTransform):
         self.humidity = self.min_humidity
         self.distance = self.min_distance
 
-    def randomize_parameters(self, samples: torch.Tensor):
+    def randomize_parameters(self, samples: np.ndarray):
         super().randomize_parameters(samples)
         self.temperature = 10 * random.randint(
             int(self.min_temperature) // 10, int(self.max_temperature) // 10
@@ -188,77 +174,62 @@ class AirAbsorption(BaseWaveformTransform):
         )
         self.distance = random.uniform(self.min_distance, self.max_distance)
 
-    def apply(self, samples: torch.Tensor) -> torch.Tensor:
+    def apply(self, samples: np.ndarray) -> np.ndarray:
         # Choose correct absorption coefficients
         key = _get_temperature_humidity_key(
             self.temperature, self.humidity
         )
 
         # Convert to attenuations
-        attenuation_values = torch.exp(
-            -self.distance * torch.tensor(self.air_absorption_table[key])
+        attenuation_values = np.exp(
+            -self.distance * np.array(self.air_absorption_table[key])
         )
 
         # Calculate n_fft so that the lowest band can be stored in a single
         # fft bin.
         first_band_bw = self.air_absorption_table["center_freqs"][0] / (2**0.5)
         n_fft = _next_power_of_2(int(self.sample_rate / 2 / first_band_bw))
-        hop_length = int(n_fft // 4)
-        window = torch.hann_window(n_fft)
+        window = scipy.signal.get_window("hann", n_fft, fftbins=True)
 
         # Frequencies to calculate the attenuations caused by air absorption
         frequencies = _fft_freq(sr=self.sample_rate, n_fft=n_fft)
 
         # Interpolate to the desired frequencies (we have to do this in dB)
-        db_target_attenuations = interp(
+        db_target_attenuations = np.interp(
             frequencies,
             self.air_absorption_table["center_freqs"],
-            20 * torch.log10(attenuation_values),
+            20 * np.log10(attenuation_values),
         )
 
-        linear_target_attenuations = torch.from_numpy(10 ** (db_target_attenuations / 20))
+        linear_target_attenuations = 10 ** (db_target_attenuations / 20)
 
         # Apply using STFT
         if len(samples.shape) == 1:
-            stft = torch.stft(samples, n_fft=n_fft, return_complex=False)
+            _stft = stft(samples, window=window, n_fft=n_fft)
 
             # Compute mask
-            mask = torch.tile(linear_target_attenuations, (stft.shape[1], 1)).T
+            mask = np.tile(linear_target_attenuations, (_stft.shape[1], 1)).T
 
             # Compute target degraded audio
-            result = torch.istft(stft * mask, length=len(samples))
-
+            result = istft(_stft * mask, window=window, length=len(samples))
         else:
-            result = torch.zeros_like(samples, dtype=samples.dtype)
+            result = np.zeros_like(samples, dtype=samples.dtype)
 
             for chn_idx, channel in enumerate(samples):
-                stft = torch.stft(channel,
-                                  n_fft=n_fft,
-                                  hop_length=hop_length,
-                                  win_length=n_fft,        # librosa defaults win_length to n_fft when None
-                                  window=window,
-                                  center=True,
-                                  pad_mode='reflect',
-                                  normalized=False,       # librosa does not normalize
-                                  onesided=True,
-                                  return_complex=True,
-                                  )
+                _stft = stft(channel,
+                             n_fft=n_fft,
+                             window=window,
+                             )
 
                 # Compute mask
-                mask = torch.tile(linear_target_attenuations, (stft.shape[1], 1)).T
+                mask = np.tile(linear_target_attenuations, (_stft.shape[1], 1)).T
 
                 # Compute target degraded audio
-                result[chn_idx, :] = torch.istft(stft * mask,
-                                                 n_fft=n_fft,
-                                                 hop_length=hop_length,
-                                                 win_length=n_fft,
-                                                 window=window,
-                                                 center=True,
-                                                 normalized=False,
-                                                 onesided=True,
-                                                 length=result.shape[1],     # equivalent to librosa's length parameter
-                                                 return_complex=False,
-                                                 )
+                result[chn_idx, :] = istft(_stft * mask,
+                                           n_fft=n_fft,
+                                           window=window,
+                                           length=result.shape[1],
+                                           )
 
         LOGGER.debug(f"Appied air absorption: {self.temperature} deg / {self.humidity} %RH / {self.distance} m")
 

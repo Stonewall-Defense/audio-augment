@@ -1,20 +1,20 @@
 ###############################################################################
 # Global Imports
 ###############################################################################
+import math
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Optional
 
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-import torch
-
-###############################################################################
-# Local Imports
-###############################################################################
-from teamml_audio_augment.core._advanced import rms, minmax
-
+import numpy as np
+import numpy_minmax
+import numpy_rms
+import soundfile
+from tinytag import TinyTag
 
 ###############################################################################
 # Constants
@@ -100,9 +100,9 @@ def find_audio_files_in_paths(
     return file_paths
 
 
-def calculate_rms(samples: torch.Tensor):
+def calculate_rms(samples: np.ndarray):
     """Given a numpy array of audio samples, return its Root Mean Square (RMS)."""
-    return torch.mean(rms(samples))
+    return np.mean(numpy_rms.rms(samples))
 
 
 def calculate_desired_noise_rms(clean_rms, snr: float):
@@ -126,13 +126,13 @@ def convert_decibels_to_amplitude_ratio(decibels: float):
 @lru_cache(maxsize=8)
 def get_crossfade_mask_pair(
     length: int, equal_energy: bool = True
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Equal-gain or equal-energy (within ~1%) cross-fade mask pair with
     smooth start and end.
     https://signalsmith-audio.co.uk/writing/2021/cheap-energy-crossfade/
     """
-    x = torch.linspace(0, 1, length, dtype=torch.float32)
+    x = np.linspace(0, 1, length, dtype=np.float32)
     x2 = 1 - x
     a = x * x2
     k = 1.4186 if equal_energy else -0.70912
@@ -144,7 +144,57 @@ def get_crossfade_mask_pair(
     return fade_in, fade_out
 
 
-def get_max_abs_amplitude(samples: torch.Tensor):
-    min_amplitude, max_amplitude = minmax(samples)
-    max_abs_amplitude = torch.max(torch.abs(min_amplitude), torch.abs(max_amplitude))
+def get_max_abs_amplitude(samples: np.ndarray):
+    min_amplitude, max_amplitude = numpy_minmax.minmax(samples)
+    max_abs_amplitude = max(abs(min_amplitude), abs(max_amplitude))
     return max_abs_amplitude
+
+
+def is_multichannel(wave: np.ndarray) -> bool:
+    return wave.shape[0] > 1
+
+
+def _metadata(filename: Path | str):
+    if not str(filename).endswith("wav"):
+        raise ValueError(f"Only WAV files are supported: {filename}")
+
+    info = TinyTag.get(filename)
+    n_chan = info.channels
+    sr = info.samplerate
+
+    if n_chan is None or sr is None:
+        raise ValueError(f"Could not get metadata for file: {filename}")
+    else:
+        return n_chan, sr
+
+
+def load_wav(filename: Path | str,
+             *,
+             start_sec: Optional[float] = None,
+             end_sec: Optional[float] = None,
+             ):
+    n_chan, sr = _metadata(filename)
+
+    if start_sec and start_sec < 0:
+        raise ValueError("start_sec must be at least zero")
+    elif end_sec and end_sec < 0:
+        raise ValueError("end_sec must be at least zero")
+    elif start_sec and end_sec and end_sec <= start_sec:
+        raise ValueError("end_sec must be strictly higher than start_sec if both are provided")
+
+    start_samples = int(start_sec * sr * n_chan) if start_sec else 0
+    end_samples = int(end_sec * sr * n_chan) if end_sec else None
+    frames = (end_samples - start_samples) if end_samples is not None else -1
+
+    audio_raw, _ = soundfile.read(filename, start=start_samples, frames=frames, fill_value=0, always_2d=True)
+    audio = audio_raw.astype(np.float32).T
+
+    return np.mean(audio, axis=0, keepdims=True) if is_multichannel(audio) else audio
+
+
+def mel_to_hz(mel: float):
+    return 700.0 * (10.0 ** (mel / 2595.0) - 1.0)
+
+
+def hz_to_mel(freq: float):
+    return 2595.0 * math.log10(1.0 + (freq / 700.0))

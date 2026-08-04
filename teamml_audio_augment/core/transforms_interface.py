@@ -8,17 +8,12 @@ from typing import Optional
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-import torch
-
-###############################################################################
-# Certus Imports
-###############################################################################
-from AudioMlSpecTools import is_multichannel
+import numpy as np
 
 ###############################################################################
 # Local Imports
 ###############################################################################
-from teamml_audio_augment.core.utils import get_default_sample_rate
+from teamml_audio_augment.core.utils import get_default_sample_rate, is_multichannel
 
 
 ###############################################################################
@@ -68,10 +63,10 @@ class BaseWaveformTransform(ABC):
         self.are_parameters_frozen = False
 
     @abstractmethod
-    def apply(self, samples: torch.Tensor) -> torch.Tensor:
+    def apply(self, samples: np.ndarray) -> np.ndarray:
         ...
 
-    def __call__(self, samples: torch.Tensor) -> torch.Tensor:
+    def __call__(self, samples: np.ndarray) -> np.ndarray:
         if not self.are_parameters_frozen or self.should_apply is None:
             self.randomize_parameters(samples)
         if self.should_apply and len(samples) > 0:
@@ -102,5 +97,5 @@ class BaseWaveformTransform(ABC):
             return self.apply(samples)
         return samples
 
-    def randomize_parameters(self, samples: torch.Tensor):
+    def randomize_parameters(self, samples: np.ndarray):
         self.should_apply = random.random() < self.p

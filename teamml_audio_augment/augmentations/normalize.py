@@ -7,7 +7,7 @@ from typing import Literal, Optional
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-import torch
+import numpy as np
 
 ###############################################################################
 # Local Imports
@@ -46,12 +46,12 @@ class Normalize(BaseWaveformTransform):
         self.apply_to = apply_to
         self.max_amplitude = 1.0
 
-    def randomize_parameters(self, samples: torch.Tensor):
+    def randomize_parameters(self, samples: np.ndarray):
         super().randomize_parameters(samples)
         if self.should_apply:
             self.max_amplitude = float(get_max_abs_amplitude(samples))
 
-    def apply(self, samples: torch.Tensor) -> torch.Tensor:
+    def apply(self, samples: np.ndarray) -> np.ndarray:
         if (self.apply_to == "only_too_loud_sounds" and self.max_amplitude < 1.0):
             return samples
 

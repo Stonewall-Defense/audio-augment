@@ -11,7 +11,6 @@ from typing import Literal, Optional
 ###############################################################################
 import numpy as np
 import numpy_audio_limiter
-import torch
 
 ###############################################################################
 # Local Imports
@@ -98,7 +97,7 @@ class Limiter(BaseWaveformTransform):
         self.max_release = max_release
         self.threshold_mode = threshold_mode
 
-        self.randomize_parameters(torch.zeros(1))
+        self.randomize_parameters(np.zeros(1))
 
     @staticmethod
     def convert_time_to_coefficient(
@@ -111,7 +110,7 @@ class Limiter(BaseWaveformTransform):
             decay_threshold = convert_decibels_to_amplitude_ratio(-60)
         return 10 ** (math.log10(decay_threshold) / max(sample_rate * t, 1.0))
 
-    def randomize_parameters(self, samples: torch.Tensor):
+    def randomize_parameters(self, samples: np.ndarray):
         super().randomize_parameters(samples)
 
         if self.should_apply:
@@ -137,21 +136,19 @@ class Limiter(BaseWaveformTransform):
                 threshold_factor * convert_decibels_to_amplitude_ratio(threshold_db)
             )
 
-    def apply(self, samples: torch.Tensor) -> torch.Tensor:
+    def apply(self, samples: np.ndarray) -> np.ndarray:
         if self.threshold == 0.0:
             # Digital silence input can cause this to happen
             return samples
 
-        samples_tmp = samples.numpy().astype(np.float32)
-
-        original_ndim = samples_tmp.ndim
+        original_ndim = samples.ndim
         if original_ndim == 1:
-            samples_tmp = samples_tmp.reshape((1, -1))
-        elif samples_tmp.shape[0] > 1 and not samples_tmp.flags.c_contiguous:
-            samples_tmp = np.ascontiguousarray(samples_tmp)
+            samples = samples.reshape((1, -1))
+        elif samples.shape[0] > 1 and not samples.flags.c_contiguous:
+            samples = np.ascontiguousarray(samples)
 
         processed_samples = numpy_audio_limiter.limit(
-            signal=samples_tmp,
+            signal=samples.astype(np.float32),
             attack_coeff=self.attack,
             release_coeff=self.release,
             delay=self.delay,
@@ -162,4 +159,4 @@ class Limiter(BaseWaveformTransform):
 
         LOGGER.debug(f"Applied limiter of {self.attack:.03f}/{self.release:.03f}/{self.delay:.03f}/{self.threshold:.03f}")
 
-        return torch.from_numpy(processed_samples)
+        return processed_samples

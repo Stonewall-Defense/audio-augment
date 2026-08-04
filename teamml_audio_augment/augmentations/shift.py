@@ -8,7 +8,7 @@ from typing import Literal, Optional
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-import torch
+import numpy as np
 
 ###############################################################################
 # Local Imports
@@ -105,7 +105,7 @@ class Shift(BaseWaveformTransform):
 
         self.shift_amount = min_shift
 
-    def randomize_parameters(self, samples: torch.Tensor):
+    def randomize_parameters(self, samples: np.ndarray):
         super().randomize_parameters(samples)
 
         if self.should_apply:
@@ -117,7 +117,7 @@ class Shift(BaseWaveformTransform):
             else:
                 self.shift_amount = random.uniform(self.min_shift, self.max_shift)
 
-    def apply(self, samples: torch.Tensor) -> torch.Tensor:
+    def apply(self, samples: np.ndarray) -> np.ndarray:
         if self.shift_unit == "samples":
             num_places_to_shift = int(self.shift_amount)
         elif self.shift_unit == "fraction":
@@ -131,7 +131,7 @@ class Shift(BaseWaveformTransform):
         else:
             raise ValueError("invalid shift_unit")
 
-        shifted_samples = torch.roll(samples, num_places_to_shift, dims=-1)
+        shifted_samples = np.roll(samples, num_places_to_shift, axis=-1)
 
         if not self.rollover:
             if num_places_to_shift > 0:

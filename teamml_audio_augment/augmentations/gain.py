@@ -8,7 +8,7 @@ from typing import Optional
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-import torch
+import numpy as np
 
 ###############################################################################
 # Local Imports
@@ -61,13 +61,13 @@ class Gain(BaseWaveformTransform):
 
         self.amplitude_ratio = convert_decibels_to_amplitude_ratio(self.min_gain_db)
 
-    def randomize_parameters(self, samples: torch.Tensor):
+    def randomize_parameters(self, samples: np.ndarray):
         super().randomize_parameters(samples)
         if self.should_apply:
             self.amplitude_ratio = convert_decibels_to_amplitude_ratio(
                 random.uniform(self.min_gain_db, self.max_gain_db)
             )
 
-    def apply(self, samples: torch.Tensor) -> torch.Tensor:
+    def apply(self, samples: np.ndarray) -> np.ndarray:
         LOGGER.debug(f"Appied gain @ {self.amplitude_ratio:.03f}")
         return samples * self.amplitude_ratio

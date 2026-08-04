@@ -10,17 +10,12 @@ from typing import Optional
 ###############################################################################
 import numpy as np
 from scipy.signal import butter, sosfilt, sosfiltfilt, sosfilt_zi
-import torch
-
-###############################################################################
-# Certus Imports
-###############################################################################
-from AudioMlSpecTools import mel_to_hz, hz_to_mel, MelType
 
 ###############################################################################
 # Local Imports
 ###############################################################################
 from teamml_audio_augment.core.transforms_interface import BaseWaveformTransform
+from teamml_audio_augment.core.utils import mel_to_hz, hz_to_mel
 
 
 ###############################################################################
@@ -103,7 +98,7 @@ class HighPassFilter(BaseWaveformTransform):
         self.rolloff = self.min_rolloff
         self.cutoff_freq = self.min_cutoff_freq
 
-    def randomize_parameters(self, samples: torch.Tensor):
+    def randomize_parameters(self, samples: np.ndarray):
         super().randomize_parameters(samples)
         if self.zero_phase:
             random_order = random.randint(
@@ -115,12 +110,12 @@ class HighPassFilter(BaseWaveformTransform):
             self.rolloff = random_order * 6
 
         cutoff_mel = np.random.uniform(
-            low=hz_to_mel(self.min_cutoff_freq, MelType.OSHAUGHNESSY),
-            high=hz_to_mel(self.max_cutoff_freq, MelType.OSHAUGHNESSY),
+            low=hz_to_mel(self.min_cutoff_freq),
+            high=hz_to_mel(self.max_cutoff_freq),
         )
-        self.cutoff_freq = mel_to_hz(cutoff_mel, MelType.OSHAUGHNESSY)
+        self.cutoff_freq = mel_to_hz(cutoff_mel)
 
-    def apply(self, samples: torch.Tensor) -> torch.Tensor:
+    def apply(self, samples: np.ndarray) -> np.ndarray:
         cutoff_freq = self.cutoff_freq
         nyquist_freq = self.sample_rate // 2
         if cutoff_freq > nyquist_freq:
@@ -138,30 +133,28 @@ class HighPassFilter(BaseWaveformTransform):
         )
 
         # The actual processing takes place here
-        samples_tmp = samples.numpy()
-
-        if len(samples_tmp.shape) == 1:
+        if len(samples.shape) == 1:
             if self.zero_phase:
-                processed_samples = sosfiltfilt(sos, samples_tmp)
+                processed_samples = sosfiltfilt(sos, samples)
             else:
                 processed_samples, _ = sosfilt(
-                    sos, samples_tmp, zi=sosfilt_zi(sos) * samples_tmp[0]
+                    sos, samples, zi=sosfilt_zi(sos) * samples[0]
                 )
             processed_samples = processed_samples.astype(np.float32)
         else:
-            processed_samples = np.zeros_like(samples_tmp, dtype=np.float32)
+            processed_samples = np.zeros_like(samples, dtype=np.float32)
             if self.zero_phase:
-                for chn_idx in range(samples_tmp.shape[0]):
+                for chn_idx in range(samples.shape[0]):
                     processed_samples[chn_idx, :] = sosfiltfilt(
-                        sos, samples_tmp[chn_idx, :]
+                        sos, samples[chn_idx, :]
                     )
             else:
                 zi = sosfilt_zi(sos)
-                for chn_idx in range(samples_tmp.shape[0]):
+                for chn_idx in range(samples.shape[0]):
                     processed_samples[chn_idx, :], _ = sosfilt(
-                        sos, samples_tmp[chn_idx, :], zi=zi * samples_tmp[chn_idx, 0]
+                        sos, samples[chn_idx, :], zi=zi * samples[chn_idx, 0]
                     )
 
         LOGGER.debug(f"Appied high-pass filter: {self.rolloff} dB / {self.cutoff_freq} Hz")
 
-        return torch.from_numpy(processed_samples)
+        return processed_samples

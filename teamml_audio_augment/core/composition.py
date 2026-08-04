@@ -11,7 +11,7 @@ from typing import Optional
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-import torch
+import numpy as np
 
 ###############################################################################
 # Certus Imports
@@ -35,10 +35,10 @@ class BaseCompose(ABC):
         self.are_parameters_frozen = False
 
     @abstractmethod
-    def __call__(self, samples: torch.Tensor, apply_to_children: bool) -> torch.Tensor:
+    def __call__(self, samples: np.ndarray, apply_to_children: bool) -> np.ndarray:
         ...
 
-    def randomize_parameters(self, samples: torch.Tensor, apply_to_children=True):
+    def randomize_parameters(self, samples: np.ndarray, apply_to_children=True):
         """
         Randomize and define parameters of every transform in composition.
         """
@@ -101,7 +101,7 @@ class Compose(BaseCompose):
                  ):
         super().__init__(transforms, p=p, shuffle=shuffle)
 
-    def __call__(self, samples: torch.Tensor, apply_to_children=True) -> torch.Tensor:
+    def __call__(self, samples: np.ndarray, apply_to_children=True) -> np.ndarray:
         transforms = list(self.transforms).copy()
         should_apply = random.random() < self.p
 
@@ -165,7 +165,7 @@ class SomeOf(BaseCompose):
         self.num_transforms = num_transforms
         self.should_apply = True
 
-    def randomize_parameters(self, samples: torch.Tensor, apply_to_children=True):
+    def randomize_parameters(self, samples: np.ndarray, apply_to_children=True):
         super().randomize_parameters(samples, apply_to_children)
 
         self.should_apply = random.random() < self.p
@@ -187,7 +187,7 @@ class SomeOf(BaseCompose):
                 random.sample(all_transforms_indexes, num_transforms_to_apply)
             )
 
-    def __call__(self, samples: torch.Tensor, apply_to_children=False) -> torch.Tensor:
+    def __call__(self, samples: np.ndarray, apply_to_children=False) -> np.ndarray:
         if not self.are_parameters_frozen:
             apply_to_children = False
             self.randomize_parameters(samples, apply_to_children)
@@ -238,7 +238,7 @@ class OneOf(BaseCompose):
         if self.should_apply:
             self.next_transform = random.choice(self.transforms)
 
-    def __call__(self, samples: torch.Tensor, apply_to_children=False) -> torch.Tensor:
+    def __call__(self, samples: np.ndarray, apply_to_children=False) -> np.ndarray:
         if not self.are_parameters_frozen:
             apply_to_children = False
             self.randomize_parameters(samples, apply_to_children)

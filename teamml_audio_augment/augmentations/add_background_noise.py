@@ -10,13 +10,8 @@ from typing import Optional
 ###############################################################################
 # 3PP Imports
 ###############################################################################
+import numpy as np
 from tinytag import TinyTag
-import torch
-
-###############################################################################
-# Certus Imports
-###############################################################################
-from AudioMlSpecTools import WavReader
 
 ###############################################################################
 # Local Imports
@@ -26,6 +21,7 @@ from teamml_audio_augment.core.utils import (
     calculate_desired_noise_rms,
     calculate_rms,
     find_audio_files_in_paths,
+    load_wav,
 )
 
 
@@ -47,7 +43,6 @@ class AddBackgroundNoise(BaseWaveformTransform):
         min_snr_db: float = 3.0,
         max_snr_db: float = 30.0,
         p: float = 0.5,
-        lru_cache_size: int | None = None,
     ):
         super().__init__(sample_rate, p=p)
 
@@ -70,15 +65,13 @@ class AddBackgroundNoise(BaseWaveformTransform):
         self.duration = 0.0
 
         # Helper parameters
-        if lru_cache_size is not None:
-            raise ValueError(
-                "Passing lru_cache_size is no longer supported, as the cache has been removed (since v0.43.0)."
-            )
-        self.time_info_arr = torch.full((len(self.sound_file_paths),), -1.0)
+        self.time_info_arr = np.zeros(
+            shape=(len(self.sound_file_paths),),
+            dtype=np.float32,
+        )
+        self.time_info_arr.fill(-1.0)
 
-        self.reader = WavReader(target_sr=self.sample_rate)
-
-    def randomize_parameters(self, samples: torch.Tensor):
+    def randomize_parameters(self, samples: np.ndarray):
         super().randomize_parameters(samples)
 
         if self.should_apply:
@@ -102,9 +95,9 @@ class AddBackgroundNoise(BaseWaveformTransform):
             self.offset = random.uniform(min_noise_offset, max_noise_offset)
             self.duration = signal_duration
 
-    def apply(self, samples: torch.Tensor) -> torch.Tensor:
+    def apply(self, samples: np.ndarray) -> np.ndarray:
         end_sec = self.offset + self.duration
-        noise_sound = self.reader.read(self.noise_file_path, start_sec=self.offset, end_sec=end_sec)
+        noise_sound = load_wav(self.noise_file_path, start_sec=self.offset, end_sec=end_sec)
 
         noise_rms = calculate_rms(noise_sound)
         if noise_rms < 1e-9:
@@ -124,7 +117,7 @@ class AddBackgroundNoise(BaseWaveformTransform):
         # Repeat the sound if it shorter than the input sound
         num_samples = samples.shape[-1]
         while noise_sound.shape[-1] < num_samples:
-            noise_sound = torch.concatenate((noise_sound, noise_sound), dim=-1)
+            noise_sound = np.concatenate((noise_sound, noise_sound))
 
         if noise_sound.shape[-1] > num_samples:
             noise_sound = noise_sound[..., 0:num_samples]

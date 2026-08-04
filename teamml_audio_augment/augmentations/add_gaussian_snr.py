@@ -8,7 +8,7 @@ from typing import Optional
 ###############################################################################
 # 3PP Imports
 ###############################################################################
-import torch
+import numpy as np
 
 ###############################################################################
 # Local Imports
@@ -60,7 +60,7 @@ class AddGaussianSNR(BaseWaveformTransform):
 
         self.noise_std = 0.0
 
-    def randomize_parameters(self, samples: torch.Tensor):
+    def randomize_parameters(self, samples: np.ndarray):
         super().randomize_parameters(samples)
         if self.should_apply:
             # Pick SNR in decibel scale
@@ -72,8 +72,8 @@ class AddGaussianSNR(BaseWaveformTransform):
             # In gaussian noise, the RMS gets roughly equal to the std
             self.noise_std = float(noise_rms)
 
-    def apply(self, samples: torch.Tensor) -> torch.Tensor:
-        noise = torch.normal(0.0, self.noise_std, size=samples.shape)
+    def apply(self, samples: np.ndarray) -> np.ndarray:
+        noise = np.random.normal(0.0, self.noise_std, size=samples.shape)
 
         LOGGER.debug(f"Appied Gaussian SNR @ {self.noise_std:.03f}")
 
