@@ -60,7 +60,7 @@ def _fft_freq(sr: int, n_fft: int = 2048):
 
 
 def interp(x, xp, fp):
-    fp = torch.tensor(fp)
+    fp = torch.tensor(fp) if not isinstance(fp, torch.Tensor) else fp
     return compiled_interp(x, xp, fp, None, None)
 
 
@@ -181,10 +181,10 @@ class AirAbsorption(BaseWaveformTransform):
     def randomize_parameters(self, samples: torch.Tensor):
         super().randomize_parameters(samples)
         self.temperature = 10 * random.randint(
-            int(self.min_temperature) // 10, int(self.max_temperature) // 10 + 1
+            int(self.min_temperature) // 10, int(self.max_temperature) // 10
         )
         self.humidity = random.randint(
-            self.min_humidity, self.max_humidity + 1
+            self.min_humidity, self.max_humidity
         )
         self.distance = random.uniform(self.min_distance, self.max_distance)
 
@@ -203,6 +203,8 @@ class AirAbsorption(BaseWaveformTransform):
         # fft bin.
         first_band_bw = self.air_absorption_table["center_freqs"][0] / (2**0.5)
         n_fft = _next_power_of_2(int(self.sample_rate / 2 / first_band_bw))
+        hop_length = int(n_fft // 4)
+        window = torch.hann_window(n_fft)
 
         # Frequencies to calculate the attenuations caused by air absorption
         frequencies = _fft_freq(sr=self.sample_rate, n_fft=n_fft)
@@ -214,11 +216,11 @@ class AirAbsorption(BaseWaveformTransform):
             20 * torch.log10(attenuation_values),
         )
 
-        linear_target_attenuations = 10 ** (db_target_attenuations / 20)
+        linear_target_attenuations = torch.from_numpy(10 ** (db_target_attenuations / 20))
 
         # Apply using STFT
         if len(samples.shape) == 1:
-            stft = torch.stft(samples, n_fft=n_fft)
+            stft = torch.stft(samples, n_fft=n_fft, return_complex=False)
 
             # Compute mask
             mask = torch.tile(linear_target_attenuations, (stft.shape[1], 1)).T
@@ -230,13 +232,33 @@ class AirAbsorption(BaseWaveformTransform):
             result = torch.zeros_like(samples, dtype=samples.dtype)
 
             for chn_idx, channel in enumerate(samples):
-                stft = torch.stft(channel, n_fft=n_fft)
+                stft = torch.stft(channel,
+                                  n_fft=n_fft,
+                                  hop_length=hop_length,
+                                  win_length=n_fft,        # librosa defaults win_length to n_fft when None
+                                  window=window,
+                                  center=True,
+                                  pad_mode='reflect',
+                                  normalized=False,       # librosa does not normalize
+                                  onesided=True,
+                                  return_complex=True,
+                                  )
 
                 # Compute mask
                 mask = torch.tile(linear_target_attenuations, (stft.shape[1], 1)).T
 
                 # Compute target degraded audio
-                result[chn_idx, :] = torch.istft(stft * mask, length=result.shape[1])
+                result[chn_idx, :] = torch.istft(stft * mask,
+                                                 n_fft=n_fft,
+                                                 hop_length=hop_length,
+                                                 win_length=n_fft,
+                                                 window=window,
+                                                 center=True,
+                                                 normalized=False,
+                                                 onesided=True,
+                                                 length=result.shape[1],     # equivalent to librosa's length parameter
+                                                 return_complex=False,
+                                                 )
 
         LOGGER.debug(f"Appied air absorption: {self.temperature} deg / {self.humidity} %RH / {self.distance} m")
 
