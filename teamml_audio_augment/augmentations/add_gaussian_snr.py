@@ -73,7 +73,7 @@ class AddGaussianSNR(BaseWaveformTransform):
             self.noise_std = float(noise_rms)
 
     def apply(self, samples: np.ndarray) -> np.ndarray:
-        noise = np.random.normal(0.0, self.noise_std, size=samples.shape)
+        noise = np.random.normal(0.0, self.noise_std, size=samples.shape).astype(np.float32)
 
         LOGGER.debug(f"Appied Gaussian SNR @ {self.noise_std:.03f}")
 
