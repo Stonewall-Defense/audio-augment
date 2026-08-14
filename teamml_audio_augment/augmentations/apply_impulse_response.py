@@ -114,4 +114,7 @@ class ApplyImpulseResponse(BaseWaveformTransform):
         # reshape if mono input
         if samples_original_dim == 1:
             signal_ir = signal_ir[0]
+
+        LOGGER.debug(f"Appied impulse response from {self.ir_file_path.split('/')[-1]}")
+
         return signal_ir
