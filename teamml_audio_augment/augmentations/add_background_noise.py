@@ -117,7 +117,7 @@ class AddBackgroundNoise(BaseWaveformTransform):
         # Repeat the sound if it shorter than the input sound
         num_samples = samples.shape[-1]
         while noise_sound.shape[-1] < num_samples:
-            noise_sound = np.concatenate((noise_sound, noise_sound))
+            noise_sound = np.concatenate((noise_sound, noise_sound), axis=1)
 
         if noise_sound.shape[-1] > num_samples:
             noise_sound = noise_sound[..., 0:num_samples]

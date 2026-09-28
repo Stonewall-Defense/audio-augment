@@ -10,6 +10,7 @@ from .augmentations.normalize import Normalize
 from .augmentations.shift import Shift
 
 from .core.composition import Compose, OneOf, SomeOf
+from .core.utils import set_default_sample_rate, get_default_sample_rate
 
 from .advanced.esc_background_noise import create_esc_augment, EscClass
 from .advanced.location_based_rir import make_location_rir, RirLocation, RIR_LOC

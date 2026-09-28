@@ -211,7 +211,7 @@ class AirAbsorption(BaseWaveformTransform):
             mask = np.tile(linear_target_attenuations, (_stft.shape[1], 1)).T
 
             # Compute target degraded audio
-            result = istft(_stft * mask, window=window, length=len(samples))
+            result = istft(_stft * mask, n_fft=n_fft, window=window, length=len(samples))
         else:
             result = np.zeros_like(samples, dtype=samples.dtype)
 

@@ -80,8 +80,8 @@ class ApplyImpulseResponse(BaseWaveformTransform):
         self.load_fn = functools.lru_cache(maxsize=self.lru_cache_size)(self.__load_ir)
 
     @staticmethod
-    def __load_ir(file_path: Path | str, sample_rate: int):
-        return load_wav(file_path)
+    def __load_ir(file_path: Path | str, sample_rate: int, mono: bool):
+        return load_wav(file_path, sample_rate=sample_rate, mono=mono)
 
     def randomize_parameters(self, samples: np.ndarray):
         super().randomize_parameters(samples)
@@ -89,7 +89,8 @@ class ApplyImpulseResponse(BaseWaveformTransform):
             self.ir_file_path = random.choice(self.ir_files)
 
     def apply(self, samples: np.ndarray) -> np.ndarray:
-        ir = self.load_fn(self.ir_file_path, self.sample_rate)
+        load_mono_ir = samples.shape[0] == 1
+        ir = self.load_fn(self.ir_file_path, self.sample_rate, mono=load_mono_ir)
 
         # Expand dimensions to match
         samples_original_dim = samples.ndim

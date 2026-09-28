@@ -19,6 +19,11 @@ import soundfile
 from tinytag import TinyTag
 
 ###############################################################################
+# Certus Imports
+###############################################################################
+from AudioMlSpecTools import resample
+
+###############################################################################
 # Constants
 ###############################################################################
 SUPPORTED_EXTENSIONS = (
@@ -181,8 +186,10 @@ def _metadata(filename: Path | str):
 
 def load_wav(filename: Path | str,
              *,
+             sample_rate: Optional[int] = _DEFAULT_SAMPLE_RATE,
              start_sec: Optional[float] = None,
              end_sec: Optional[float] = None,
+             mono=True,
              ):
     _, sr = _metadata(filename)
 
@@ -201,7 +208,13 @@ def load_wav(filename: Path | str,
     audio_raw, _ = soundfile.read(filename, start=start_samples, frames=frames, fill_value=0, always_2d=True)
     audio = audio_raw.astype(np.float32).T
 
-    return np.mean(audio, axis=0, keepdims=True) if is_multichannel(audio) else audio
+    if mono:
+        audio = np.mean(audio, axis=0, keepdims=True) if is_multichannel(audio) else audio
+
+    if sample_rate is not None and sample_rate != sr:
+        audio = resample(audio, sr, sample_rate).numpy()
+
+    return audio
 
 
 def mel_to_hz(mel: float):
